@@ -55,7 +55,7 @@ def ejecutar_instagram():
 
         # --- SCRAPING ---
         print("Ya estás dentro de Instagram.")
-        buscar = "demian_lml_c"
+        buscar = "nasa_es"
         # ir a perfil
         page.goto(f"https://www.instagram.com/{buscar}")
 
@@ -120,8 +120,11 @@ def ejecutar_instagram():
             # Encontrar todos los elementos de publicaciones
             enlaces_posts = page.locator("div._aagu").all()
             
-            # Limitamos 
+            # Límite de publicaciones a abrir
             cantidad = min(3, len(enlaces_posts))
+            
+            # Límite de comentarios a extraer por publicacion
+            max_comentarios = 5
             
             if cantidad == 0:
                 print("No hay publicaciones visibles para abrir.")
@@ -141,7 +144,7 @@ def ejecutar_instagram():
                 
                 # Extraer información del modal
                 datos_post = page.evaluate("""
-                    () => {
+                    (maxCom) => {
                         const dialog = document.querySelector("div[role='dialog']");
                         if (!dialog) return { likes: '0', comentarios: '0', fecha: 'Desconocida' };
                         
@@ -175,13 +178,55 @@ def ejecutar_instagram():
                         });
                         comentarios = countRespuestas.toString();
                         
-                        return { likes: likes, comentarios: comentarios, fecha: fecha };
+                        // 4. Extraer el texto de los comentarios
+                        let detalle_comentarios = [];
+                        
+                        // buscamos cada etiqueta <h3> que es donde Facebook/Instagram SIEMPRE pone el nombre de usuario
+                        const authores = dialog.querySelectorAll("h3");
+                        
+                        for (let autorH3 of authores) {
+                            // El contenedor padre inmediato suele tener tanto el <h3> del nombre como el <span> del texto
+                            const contenedor = autorH3.parentElement;
+                            if (!contenedor) continue;
+                            
+                            const textoDiv = contenedor.querySelector("span[dir='auto']");
+                            
+                            // Aseguramos que existe el combo autor+texto y la opción de "Responder"
+                            const textoBloque = contenedor.parentElement ? contenedor.parentElement.innerText : contenedor.innerText;
+                            
+                            if (textoDiv && textoBloque.includes('Responder')) {
+                                let authName = autorH3.innerText.trim();
+                                let txt = textoDiv.innerText.trim();
+                                let combined = authName + ": " + txt;
+                                
+                                // Prevenir duplicados en caso de que un usuario comente exactamente lo mismo, 
+                                // o por si el DOM repite el nombre
+                                if (!detalle_comentarios.includes(combined)) {
+                                    detalle_comentarios.push(combined);
+                                }
+                                
+                                if (detalle_comentarios.length >= maxCom) {
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        return { 
+                            likes: likes, 
+                            comentarios: comentarios, 
+                            fecha: fecha,
+                            detalle_comentarios: detalle_comentarios
+                        };
                     }
-                """)
+                """, max_comentarios)
                 
                 print(f"-> Fecha de Publicación: {datos_post['fecha']}")
                 print(f"-> Likes detectados: {datos_post['likes']}")
                 print(f"-> Comentarios detectados: {datos_post['comentarios']}")
+                if len(datos_post['detalle_comentarios']) > 0:
+                    print("-> Top comentarios extraídos:")
+                    for j, c_text in enumerate(datos_post['detalle_comentarios']):
+                        print(f"     {j+1}. {c_text}")
                 
                 lista_publicaciones.append(datos_post)
                 
@@ -213,11 +258,16 @@ def save_to_csv(perfil, publicaciones, filename="datos_ig.csv"):
         return
     with open(filename, 'w', encoding='utf-8', newline='') as f:
         # Mezclamos los campos del perfil y del post para cada fila
-        fieldnames = ["nombre_completo", "total_publicaciones", "total_seguidores", "total_seguidos", "fecha_post", "likes_post", "comentarios_post"]
+        fieldnames = [
+            "nombre_completo", "total_publicaciones", "total_seguidores", "total_seguidos", 
+            "fecha_post", "likes_post", "comentarios_post",
+            "comentario_1", "comentario_2", "comentario_3", "comentario_4", "comentario_5"
+        ]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         
         for post in publicaciones:
+            detalles = post.get("detalle_comentarios", [])
             fila = {
                 "nombre_completo": perfil.get("nombre_completo", ""),
                 "total_publicaciones": perfil.get("publicaciones", ""),
@@ -225,7 +275,12 @@ def save_to_csv(perfil, publicaciones, filename="datos_ig.csv"):
                 "total_seguidos": perfil.get("seguidos", ""),
                 "fecha_post": post.get("fecha", ""),
                 "likes_post": post.get("likes", ""),
-                "comentarios_post": post.get("comentarios", "")
+                "comentarios_post": post.get("comentarios", ""),
+                "comentario_1": detalles[0] if len(detalles) > 0 else "",
+                "comentario_2": detalles[1] if len(detalles) > 1 else "",
+                "comentario_3": detalles[2] if len(detalles) > 2 else "",
+                "comentario_4": detalles[3] if len(detalles) > 3 else "",
+                "comentario_5": detalles[4] if len(detalles) > 4 else ""
             }
             writer.writerow(fila)
             
