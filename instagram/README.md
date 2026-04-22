@@ -1,42 +1,97 @@
-# Instagram Scraper Básico con Playwright
+# 📸 Instagram Scraper con Playwright
 
-Este directorio contiene herramientas para realizar web scraping en perfiles de Instagram utilizando **Python** y **Playwright sincronizado**.
+> Herramienta de web scraping para perfiles de Instagram usando **Python** y **Playwright sincronizado**.
 
-## Descripción del script `ig_scrape2.py`
+---
 
-`ig_scrape2.py` es el script principal desarrollado para extraer automáticamente estadísticas tanto de una cuenta específica de Instagram como de sus publicaciones recientes. Está armado para no requerir inicios de sesión repetitivos, manteniendo las buenas prácticas de manejo de sesiones para herramientas de automatización.
+## 📁 Estructura del proyecto
 
-### Funcionamiento y Flujo
+El código está dividido en módulos para mayor legibilidad y mantenimiento:
 
-1. **Gestión de la Sesión:** 
-   El script verifica si existe un archivo de cookies llamado `state_ig.json`. Si lo encuentra y es válido, entra a Instagram directamente saltándose el inicio de sesión. Si el archivo no existe o caducó, abre Instagram y proporciona una ventana de **5 minutos** para que el usuario coloque sus credenciales a mano y venza cualquier captcha o 2FA (verificación de doble factor). Una vez detectado el éxito, guarda la sesión automáticamente para uso futuro.
+| Archivo | Responsabilidad |
+|---|---|
+| `main.py` | 🚀 Punto de entrada: pide configuración y orquesta todo |
+| `auth.py` | 🔐 Login, carga y guardado de sesión |
+| `scraper.py` | 🕷️ Extracción de perfil, posts y comentarios |
+| `exportar.py` | 💾 Guardado de resultados en JSON y CSV |
+| `ig_scrape2.py` | 📦 Versión monolítica original (referencia) |
 
-2. **Extracción de Datos de Perfil:**
-   El bot se dirige al perfil deseado y, sin necesidad de explorar fotografías puntuales, extrae directamente de la cabecera del perfil:
-   - Nombre.
-   - Cantidad total de publicaciones.
-   - Cantidad total de seguidores.
-   - Cantidad total de cuentas seguidas.
+---
 
-3. **Interacción y Extracción de Publicaciones:**
-   Una vez lograda la información de la cabecera, el bot busca en la cuadrícula de imágenes usando clases nativas de la web de Instagram (como `_aagu`) y da clic de manera iterativa a las primeras configuradas (las 3 más recientes por defecto) para expandirlas. 
-   Por cada foto/post extrae:
-   - La fecha exacta (detectada en la etiqueta HTML `<time>`).
-   - El número de Me gustas (Likes).
-   - El número real de comentarios dejados por usuarios (verificados rastreando los botones de "Responder" para evadir conteos irreales).
-   Finalmente simula oprimir la tecla `Escape` (esc) para cerrar el modal de la foto e ir a la siguiente de manera natural.
+## ⚙️ Funcionamiento y Flujo
 
-4. **Exportación de Datos (Archivos generados):**
-   Al finalizar toda la iteración, el script junta la información en formato **"Uno a muchos"** y exporta la salida en la misma raíz:
-   - **`datos_ig.json`**: Un archivo JSON estructurado donde podrás ver el bloque `"perfil"` global y una matriz listando detalles de sus `"publicaciones"`.
-   - **`datos_ig.csv`**: Un documento Excel tabular plano. Cada post analizado es una nueva fila que incluye como prefijo el nombre y número de seguidores del perfil correspondiente.
+### 1. 🔐 Gestión de la Sesión (`auth.py`)
 
-## Ejecución
+Al iniciar, el script verifica si existe un archivo `state_ig.json` con una sesión guardada:
 
-Simplemente desde terminal (con el entorno virtual o Playwright instalado):
+- ✅ **Si existe y es válida** → entra directamente a Instagram sin pedir login.
+- ❌ **Si no existe o caducó** → abre el navegador y da **5 minutos** para completar el login manualmente (incluye 2FA, CAPTCHA, etc.). Una vez detectado el ingreso, guarda la sesión automáticamente para usos futuros.
+
+---
+
+### 2. 🧑‍💼 Configuración Interactiva (`main.py`)
+
+Al ejecutar `main.py`, el script pregunta por consola los tres parámetros del scraping:
+
+```
+==================================================
+   Instagram Scraper — Configuración
+==================================================
+
+Cuenta de Instagram a scrapear: natgeo
+Número de publicaciones a abrir: 5
+Comentarios a extraer por publicación (número o 'todos'): 20
+```
+
+- Si se deja vacío algún campo, se usan valores por defecto.
+- El límite de comentarios acepta un número o la palabra `todos`.
+
+---
+
+### 3. 👤 Extracción de Datos de Perfil (`scraper.py`)
+
+El bot navega al perfil y extrae desde el header:
+
+- 📛 Nombre completo
+- 📊 Cantidad total de publicaciones
+- 👥 Cantidad de seguidores
+- 👣 Cantidad de cuentas seguidas
+
+---
+
+### 4. 🖼️ Extracción de Publicaciones (`scraper.py`)
+
+Por cada publicación (hasta el límite configurado), el bot hace clic para abrir el modal y extrae:
+
+- 📅 Fecha exacta de publicación
+- ❤️ Número de likes
+- 💬 Número de comentarios
+- 📝 **Descripción / caption del post** *(nuevo)*
+- 🗨️ **Texto de los comentarios** con nombre de usuario (hasta el límite configurado)
+
+Para cargar más comentarios, el bot hace clic automáticamente en el botón **"Cargar más comentarios"** hasta alcanzar el objetivo o agotar los disponibles.
+
+Al terminar cada post, simula la tecla `Escape` para cerrar el modal y continuar con el siguiente.
+
+---
+
+### 5. 💾 Exportación de Datos (`exportar.py`)
+
+Al finalizar, los datos se exportan en dos formatos:
+
+- **`datos_ig.json`** → estructura anidada con bloque `"perfil"` y lista de `"publicaciones"`, incluyendo descripción y comentarios detallados.
+- **`datos_ig.csv`** → tabla plana donde cada post es una fila. Las columnas de comentarios se generan dinámicamente (`comentario_1`, `comentario_2`, ...). Incluye columna `descripcion_post`.
+
+---
+
+## ▶️ Ejecución
 
 ```bash
-python ig_scrape2.py
+python main.py
 ```
+
 > [!NOTE]
-> Procura no abrir o interactuar bruscamente con la ventana que Playwright eleva si está en modo "headless=False" para no interrumpir el flujo del DOM que el script espera leer.
+> Procura no interactuar con la ventana del navegador mientras el scraper está corriendo para no interrumpir el flujo del DOM que el script espera leer.
+
+> [!TIP]
+> Si la sesión caduca con frecuencia, elimina el archivo `state_ig.json` para forzar un nuevo login y regenerar las cookies.
