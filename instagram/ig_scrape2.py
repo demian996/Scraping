@@ -25,7 +25,7 @@ def login_y_guardar_sesion(page, context):
         return False
 
 
-def ejecutar_instagram(limite_comentarios=15):
+def ejecutar_instagram(cuenta, limite_publicaciones=4, limite_comentarios=15):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
         
@@ -55,7 +55,7 @@ def ejecutar_instagram(limite_comentarios=15):
 
         # --- SCRAPING ---
         print("Ya estás dentro de Instagram.")
-        buscar = "metroecuador"
+        buscar = cuenta
         # ir a perfil
         page.goto(f"https://www.instagram.com/{buscar}")
 
@@ -121,7 +121,7 @@ def ejecutar_instagram(limite_comentarios=15):
             enlaces_posts = page.locator("div._aagu").all()
             
             # Límite de publicaciones a abrir
-            cantidad = min(4, len(enlaces_posts))
+            cantidad = min(limite_publicaciones, len(enlaces_posts))
             
             # Límite de comentarios a extraer por publicacion
             if limite_comentarios == 'todos':
@@ -339,8 +339,23 @@ def save_to_csv(perfil, publicaciones, filename="datos_ig.csv"):
 
 if __name__ == "__main__":
     print("--- Configuración de Scraping ---")
+
+    cuenta_input = input("Ingrese el nombre de usuario de Instagram a scrapear: ").strip()
+    if not cuenta_input:
+        print("No se ingresó ninguna cuenta. Se usará 'metroecuador' por defecto.")
+        cuenta_input = "metroecuador"
+
+    pub_input = input("Ingrese el número de publicaciones a abrir: ").strip()
+    try:
+        limite_publicaciones = int(pub_input)
+        if limite_publicaciones <= 0:
+            raise ValueError
+    except ValueError:
+        print("Valor inválido. Se abrirán 4 publicaciones por defecto.")
+        limite_publicaciones = 4
+
     limite_input = input("Ingrese la cantidad de comentarios a extraer por publicación (o escriba 'todos'): ").strip()
-    
+
     if limite_input.lower() == 'todos':
         limite_comentarios = 'todos'
     else:
@@ -350,7 +365,7 @@ if __name__ == "__main__":
             print("Valor inválido. Se extraerán 15 comentarios por defecto.")
             limite_comentarios = 15
 
-    perfil_extraido, publicaciones_extraidas = ejecutar_instagram(limite_comentarios)
+    perfil_extraido, publicaciones_extraidas = ejecutar_instagram(cuenta_input, limite_publicaciones, limite_comentarios)
     
     if perfil_extraido and publicaciones_extraidas is not None:
         save_to_json(perfil_extraido, publicaciones_extraidas)
