@@ -1,0 +1,2 @@
+# Dependencias del proyecto Instagram Scraper
+playwright>=1.40.0
