@@ -1,0 +1,26 @@
+# Entornos virtuales de Python
+venv/
+env/
+.venv/
+
+# Caché de Python
+__pycache__/
+*.pyc
+
+# Archivos de sesión y cookies de Playwright (¡Importante para no filtrar tu cuenta!)
+state_ig.json
+*state*.json
+
+# Archivos de datos generados por el scraping
+*.csv
+*.json
+!package.json
+!package-lock.json
+
+# Logs y SO
+*.log
+.DS_Store
+
+# Scripts omitidos especificamente
+mercadoLibre.py
+ig_scrape.py
