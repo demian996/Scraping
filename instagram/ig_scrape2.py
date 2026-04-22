@@ -25,7 +25,7 @@ def login_y_guardar_sesion(page, context):
         return False
 
 
-def ejecutar_instagram():
+def ejecutar_instagram(limite_comentarios=15):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
         
@@ -55,7 +55,7 @@ def ejecutar_instagram():
 
         # --- SCRAPING ---
         print("Ya estás dentro de Instagram.")
-        buscar = "nasa_es"
+        buscar = "metroecuador"
         # ir a perfil
         page.goto(f"https://www.instagram.com/{buscar}")
 
@@ -121,10 +121,13 @@ def ejecutar_instagram():
             enlaces_posts = page.locator("div._aagu").all()
             
             # Límite de publicaciones a abrir
-            cantidad = min(3, len(enlaces_posts))
+            cantidad = min(4, len(enlaces_posts))
             
             # Límite de comentarios a extraer por publicacion
-            max_comentarios = 5
+            if limite_comentarios == 'todos':
+                max_comentarios = 999999
+            else:
+                max_comentarios = limite_comentarios
             
             if cantidad == 0:
                 print("No hay publicaciones visibles para abrir.")
@@ -141,6 +144,40 @@ def ejecutar_instagram():
                 # Esperar a que emerja el modal oscuro ("dialog") de Instagram
                 page.wait_for_selector("div[role='dialog']", timeout=15000)
                 time.sleep(2) # Darle unos segundos extra para que el servidor entregue los likes/comentarios
+                
+                # Bucle para cargar más comentarios si es necesario
+                print(f"Cargando comentarios (objetivo: {limite_comentarios})...")
+                while True:
+                    # Contar cuántos comentarios (botones Responder) están visibles
+                    count_respuestas = page.evaluate("""() => {
+                        const dialog = document.querySelector("div[role='dialog']");
+                        if (!dialog) return 0;
+                        let count = 0;
+                        const botones = dialog.querySelectorAll('div[role="button"], span, div');
+                        botones.forEach(btn => {
+                            if (btn.innerText && btn.innerText.trim() === 'Responder') {
+                                count++;
+                            }
+                        });
+                        return count;
+                    }""")
+                    
+                    if limite_comentarios != 'todos' and count_respuestas >= max_comentarios:
+                        break # Ya tenemos suficientes comentarios
+                        
+                    # Buscar el botón "Cargar más comentarios"
+                    # Usamos el locator específico del SVG que mostró el usuario
+                    btn_mas = page.locator("svg[aria-label='Cargar más comentarios']")
+                    if btn_mas.count() > 0 and btn_mas.first.is_visible():
+                        try:
+                            # Hacer clic en el elemento (force=True para evitar errores si algo lo intercepta)
+                            btn_mas.first.click(timeout=3000, force=True)
+                            time.sleep(2) # Esperar a que carguen los nuevos comentarios
+                        except Exception:
+                            # Si falla el clic, nos detenemos
+                            break
+                    else:
+                        break # Ya no hay botón para cargar más
                 
                 # Extraer información del modal
                 datos_post = page.evaluate("""
@@ -256,13 +293,24 @@ def save_to_json(perfil, publicaciones, filename="datos_ig.json"):
 def save_to_csv(perfil, publicaciones, filename="datos_ig.csv"):
     if not publicaciones:
         return
+        
+    # Encontrar el máximo número de comentarios extraídos en todas las publicaciones
+    max_comentarios_extraidos = 0
+    for post in publicaciones:
+        if "detalle_comentarios" in post:
+            max_comentarios_extraidos = max(max_comentarios_extraidos, len(post["detalle_comentarios"]))
+            
     with open(filename, 'w', encoding='utf-8', newline='') as f:
         # Mezclamos los campos del perfil y del post para cada fila
         fieldnames = [
             "nombre_completo", "total_publicaciones", "total_seguidores", "total_seguidos", 
-            "fecha_post", "likes_post", "comentarios_post",
-            "comentario_1", "comentario_2", "comentario_3", "comentario_4", "comentario_5"
+            "fecha_post", "likes_post", "comentarios_post"
         ]
+        
+        # Añadir columnas de comentarios dinámicamente
+        for i in range(max_comentarios_extraidos):
+            fieldnames.append(f"comentario_{i+1}")
+            
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         
@@ -275,19 +323,34 @@ def save_to_csv(perfil, publicaciones, filename="datos_ig.csv"):
                 "total_seguidos": perfil.get("seguidos", ""),
                 "fecha_post": post.get("fecha", ""),
                 "likes_post": post.get("likes", ""),
-                "comentarios_post": post.get("comentarios", ""),
-                "comentario_1": detalles[0] if len(detalles) > 0 else "",
-                "comentario_2": detalles[1] if len(detalles) > 1 else "",
-                "comentario_3": detalles[2] if len(detalles) > 2 else "",
-                "comentario_4": detalles[3] if len(detalles) > 3 else "",
-                "comentario_5": detalles[4] if len(detalles) > 4 else ""
+                "comentarios_post": post.get("comentarios", "")
             }
+            
+            # Llenar las columnas de comentarios
+            for i in range(max_comentarios_extraidos):
+                if i < len(detalles):
+                    fila[f"comentario_{i+1}"] = detalles[i]
+                else:
+                    fila[f"comentario_{i+1}"] = ""
+                    
             writer.writerow(fila)
             
     print(f"Datos combinados guardados exitosamente en {filename}")
 
 if __name__ == "__main__":
-    perfil_extraido, publicaciones_extraidas = ejecutar_instagram()
+    print("--- Configuración de Scraping ---")
+    limite_input = input("Ingrese la cantidad de comentarios a extraer por publicación (o escriba 'todos'): ").strip()
+    
+    if limite_input.lower() == 'todos':
+        limite_comentarios = 'todos'
+    else:
+        try:
+            limite_comentarios = int(limite_input)
+        except ValueError:
+            print("Valor inválido. Se extraerán 15 comentarios por defecto.")
+            limite_comentarios = 15
+
+    perfil_extraido, publicaciones_extraidas = ejecutar_instagram(limite_comentarios)
     
     if perfil_extraido and publicaciones_extraidas is not None:
         save_to_json(perfil_extraido, publicaciones_extraidas)
