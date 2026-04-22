@@ -11,7 +11,7 @@ def login_y_guardar_sesion(page, context):
     print("--- TIENES 5 MINUTOS PARA COMPLETAR EL LOGIN MANUALMENTE (2FA, CAPTCHA, ETC.) ---")
     
     try:
-        # Aumentamos el tiempo de espera a 300 segundos (5 minutos)
+        # tiempo de espera (5 minutos)
         page.wait_for_selector("svg[aria-label='Inicio']", timeout=300000)
         
         # Guardar la sesión una vez que el usuario haya terminado de entrar
@@ -27,7 +27,7 @@ def ejecutar_instagram():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
         
-        # 1. Intentar cargar sesión guardada si existe
+        # 1. cargar sesión guardada si existe
         if os.path.exists(COOKIE_PATH):
             print("Cargando sesión existente...")
             context = browser.new_context(storage_state=COOKIE_PATH)
@@ -51,10 +51,10 @@ def ejecutar_instagram():
         else:
             print("¡Sesión válida! Entrando directamente...")
 
-        # --- AQUÍ EMPIEZA TU SCRAPING O LÓGICA PRINCIPAL ---
+        # --- SCRAPING ---
         print("Ya estás dentro de Instagram.")
         buscar = "demian_lml_c"
-        # Ejemplo: ir a tu perfil
+        # ir a perfil
         page.goto(f"https://www.instagram.com/{buscar}")
 
         page.wait_for_selector("svg[aria-label='Inicio']", timeout=300000)
@@ -70,10 +70,10 @@ def ejecutar_instagram():
         # Extraer información del perfil
         perfil = page.evaluate("""
             () => {
-                // Función auxiliar para obtener el texto completo de la estadística
+                // Función para obtener el texto completo de la estadística
                 const extraerEstadistica = () => {
                     let validStats = [];
-                    // Extraer usando el span con clase .html-span que tú encontraste (Intento 2)
+                    // Extraer usando el span con clase .html-span
                     const spans = document.querySelectorAll('header span.html-span');
                     
                     if (spans.length >= 3) {
@@ -91,7 +91,7 @@ def ejecutar_instagram():
 
                 const stats = extraerEstadistica();
                 
-                // Extraer nombre (el selector que mostraste en las imágenes)
+                // Extraer nombre
                 const spanNombre = document.querySelector('header span.x1lliihq[dir="auto"]');
                 const nombre_completo = spanNombre ? spanNombre.innerText : "No se encontró el nombre";
 
@@ -112,6 +112,79 @@ def ejecutar_instagram():
         print(f"  - {perfil['seguidores']}")
         print(f"  - {perfil['seguidos']}")
         
+        # publicaciones
+        try:
+            print("\n--- Analizando Publicaciones Individuales (Abriéndolas) ---")
+            # Encontrar todos los elementos de publicaciones
+            enlaces_posts = page.locator("div._aagu").all()
+            
+            # Limitamos 
+            cantidad = min(3, len(enlaces_posts))
+            
+            if cantidad == 0:
+                print("No hay publicaciones visibles para abrir.")
+                
+            for i in range(cantidad):
+                print(f"\nAbriendo publicación #{i + 1}...")
+                enlace = enlaces_posts[i]
+                
+                # Hacer clic en la publicación
+                enlace.click()
+                
+                # Esperar a que emerja el modal oscuro ("dialog") de Instagram
+                page.wait_for_selector("div[role='dialog']", timeout=15000)
+                time.sleep(2) # Darle unos segundos extra para que el servidor entregue los likes/comentarios
+                
+                # Extraer información del modal
+                datos_post = page.evaluate("""
+                    () => {
+                        const dialog = document.querySelector("div[role='dialog']");
+                        if (!dialog) return { likes: '0', comentarios: '0', fecha: 'Desconocida' };
+                        
+                        let likes = '0';
+                        let comentarios = '0';
+                        let fecha = 'Desconocida';
+                        
+                        // 1. Extraer Fecha
+                        const timeEl = dialog.querySelector('time');
+                        if (timeEl) {
+                            fecha = timeEl.getAttribute('title') || timeEl.innerText;
+                        }
+                        
+                        // 2. Extraer Likes (Suele estar en un enlace que dice "Les gusta a ..." o "Me gusta")
+                        const likeEls = dialog.querySelectorAll('section span, a[href*="liked_by"] span');
+                        for (let el of likeEls) {
+                            if (el.innerText && parseInt(el.innerText.replace(/\\D/g, '')) > 0) {
+                                likes = el.innerText;
+                                break;
+                            }
+                        }
+                        
+                        // 3. Extraer Comentarios
+                        // Contamos cuántos botones de "Responder" existen en la publicación.
+                        let countRespuestas = 0;
+                        const botones = dialog.querySelectorAll('div[role="button"], span, div');
+                        botones.forEach(btn => {
+                            if (btn.innerText && btn.innerText.trim() === 'Responder') {
+                                countRespuestas++;
+                            }
+                        });
+                        comentarios = countRespuestas.toString();
+                        
+                        return { likes: likes, comentarios: comentarios, fecha: fecha };
+                    }
+                """)
+                
+                print(f"-> Fecha de Publicación: {datos_post['fecha']}")
+                print(f"-> Likes detectados: {datos_post['likes']}")
+                print(f"-> Comentarios detectados: {datos_post['comentarios']}")
+                
+                # Apretar tecla ESCAPE para cerrar la foto y poder clickear la siguiente
+                page.keyboard.press("Escape")
+                time.sleep(1.5) # Pausa breve para que se cierre la animación
+                
+        except Exception as e:
+            print("Ocurrió un error al abrir las publicaciones o están bloqueadas:", e)
         # Mantener abierto un momento para ver el resultado
         time.sleep(10)
         browser.close()
