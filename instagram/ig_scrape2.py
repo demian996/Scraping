@@ -183,11 +183,12 @@ def ejecutar_instagram(cuenta, limite_publicaciones=4, limite_comentarios=15):
                 datos_post = page.evaluate("""
                     (maxCom) => {
                         const dialog = document.querySelector("div[role='dialog']");
-                        if (!dialog) return { likes: '0', comentarios: '0', fecha: 'Desconocida' };
+                        if (!dialog) return { likes: '0', comentarios: '0', fecha: 'Desconocida', descripcion: '' };
                         
                         let likes = '0';
                         let comentarios = '0';
                         let fecha = 'Desconocida';
+                        let descripcion = '';
                         
                         // 1. Extraer Fecha
                         const timeEl = dialog.querySelector('time');
@@ -215,7 +216,22 @@ def ejecutar_instagram(cuenta, limite_publicaciones=4, limite_comentarios=15):
                         });
                         comentarios = countRespuestas.toString();
                         
-                        // 4. Extraer el texto de los comentarios
+                        // 4. Extraer Descripción del post
+                        const h1Caption = dialog.querySelector('h1');
+                        if (h1Caption) {
+                            const spanDesc = h1Caption.closest('span[dir="auto"]') || h1Caption.parentElement?.querySelector("span[dir='auto']");
+                            descripcion = spanDesc ? spanDesc.innerText.trim() : h1Caption.innerText.trim();
+                        }
+                        // Fallback: buscar el primer bloque con <h2> que suele contener el caption
+                        if (!descripcion) {
+                            const h2Caption = dialog.querySelector('h2');
+                            if (h2Caption) {
+                                const spanDesc = h2Caption.parentElement?.querySelector("span[dir='auto']");
+                                descripcion = spanDesc ? spanDesc.innerText.trim() : '';
+                            }
+                        }
+
+                        // 5. Extraer el texto de los comentarios
                         let detalle_comentarios = [];
                         
                         // buscamos cada etiqueta <h3> que es donde Facebook/Instagram SIEMPRE pone el nombre de usuario
@@ -252,6 +268,7 @@ def ejecutar_instagram(cuenta, limite_publicaciones=4, limite_comentarios=15):
                             likes: likes, 
                             comentarios: comentarios, 
                             fecha: fecha,
+                            descripcion: descripcion,
                             detalle_comentarios: detalle_comentarios
                         };
                     }
@@ -260,6 +277,11 @@ def ejecutar_instagram(cuenta, limite_publicaciones=4, limite_comentarios=15):
                 print(f"-> Fecha de Publicación: {datos_post['fecha']}")
                 print(f"-> Likes detectados: {datos_post['likes']}")
                 print(f"-> Comentarios detectados: {datos_post['comentarios']}")
+                desc = datos_post.get('descripcion', '')
+                if desc:
+                    print(f"-> Descripción: {desc[:200]}{'...' if len(desc) > 200 else ''}")
+                else:
+                    print("-> Descripción: (sin descripción)")
                 if len(datos_post['detalle_comentarios']) > 0:
                     print("-> Top comentarios extraídos:")
                     for j, c_text in enumerate(datos_post['detalle_comentarios']):
@@ -304,7 +326,7 @@ def save_to_csv(perfil, publicaciones, filename="datos_ig.csv"):
         # Mezclamos los campos del perfil y del post para cada fila
         fieldnames = [
             "nombre_completo", "total_publicaciones", "total_seguidores", "total_seguidos", 
-            "fecha_post", "likes_post", "comentarios_post"
+            "fecha_post", "likes_post", "comentarios_post", "descripcion_post"
         ]
         
         # Añadir columnas de comentarios dinámicamente
@@ -323,7 +345,8 @@ def save_to_csv(perfil, publicaciones, filename="datos_ig.csv"):
                 "total_seguidos": perfil.get("seguidos", ""),
                 "fecha_post": post.get("fecha", ""),
                 "likes_post": post.get("likes", ""),
-                "comentarios_post": post.get("comentarios", "")
+                "comentarios_post": post.get("comentarios", ""),
+                "descripcion_post": post.get("descripcion", "")
             }
             
             # Llenar las columnas de comentarios
@@ -342,8 +365,8 @@ if __name__ == "__main__":
 
     cuenta_input = input("Ingrese el nombre de usuario de Instagram a scrapear: ").strip()
     if not cuenta_input:
-        print("No se ingresó ninguna cuenta. Se usará 'metroecuador' por defecto.")
-        cuenta_input = "metroecuador"
+        print("No se ingresó ninguna cuenta. Se usará 'demian_lml_c' por defecto.")
+        cuenta_input = "demian_lml_c"
 
     pub_input = input("Ingrese el número de publicaciones a abrir: ").strip()
     try:
@@ -351,8 +374,8 @@ if __name__ == "__main__":
         if limite_publicaciones <= 0:
             raise ValueError
     except ValueError:
-        print("Valor inválido. Se abrirán 4 publicaciones por defecto.")
-        limite_publicaciones = 4
+        print("Valor inválido. Se abrirán 3 publicaciones por defecto.")
+        limite_publicaciones = 3
 
     limite_input = input("Ingrese la cantidad de comentarios a extraer por publicación (o escriba 'todos'): ").strip()
 
