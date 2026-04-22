@@ -1,5 +1,7 @@
 import time
 import os
+import json
+import csv
 from playwright.sync_api import sync_playwright
 
 COOKIE_PATH = "state_ig.json"
@@ -124,6 +126,8 @@ def ejecutar_instagram():
             if cantidad == 0:
                 print("No hay publicaciones visibles para abrir.")
                 
+            lista_publicaciones = []
+                
             for i in range(cantidad):
                 print(f"\nAbriendo publicación #{i + 1}...")
                 enlace = enlaces_posts[i]
@@ -179,15 +183,57 @@ def ejecutar_instagram():
                 print(f"-> Likes detectados: {datos_post['likes']}")
                 print(f"-> Comentarios detectados: {datos_post['comentarios']}")
                 
+                lista_publicaciones.append(datos_post)
+                
                 # Apretar tecla ESCAPE para cerrar la foto y poder clickear la siguiente
                 page.keyboard.press("Escape")
                 time.sleep(1.5) # Pausa breve para que se cierre la animación
                 
         except Exception as e:
             print("Ocurrió un error al abrir las publicaciones o están bloqueadas:", e)
-        # Mantener abierto un momento para ver el resultado
-        time.sleep(10)
+            lista_publicaciones = []
+            
+        time.sleep(2)
         browser.close()
+        return perfil, lista_publicaciones
+
+# Función para guardar los datos combinados en formato JSON
+def save_to_json(perfil, publicaciones, filename="datos_ig.json"):
+    datos_completos = {
+        "perfil": perfil,
+        "publicaciones": publicaciones
+    }
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(datos_completos, f, ensure_ascii=False, indent=4)
+    print(f"\nDatos combinados guardados exitosamente en {filename}")
+
+# Función para guardar los datos combinados en formato CSV
+def save_to_csv(perfil, publicaciones, filename="datos_ig.csv"):
+    if not publicaciones:
+        return
+    with open(filename, 'w', encoding='utf-8', newline='') as f:
+        # Mezclamos los campos del perfil y del post para cada fila
+        fieldnames = ["nombre_completo", "total_publicaciones", "total_seguidores", "total_seguidos", "fecha_post", "likes_post", "comentarios_post"]
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        
+        for post in publicaciones:
+            fila = {
+                "nombre_completo": perfil.get("nombre_completo", ""),
+                "total_publicaciones": perfil.get("publicaciones", ""),
+                "total_seguidores": perfil.get("seguidores", ""),
+                "total_seguidos": perfil.get("seguidos", ""),
+                "fecha_post": post.get("fecha", ""),
+                "likes_post": post.get("likes", ""),
+                "comentarios_post": post.get("comentarios", "")
+            }
+            writer.writerow(fila)
+            
+    print(f"Datos combinados guardados exitosamente en {filename}")
 
 if __name__ == "__main__":
-    ejecutar_instagram()
+    perfil_extraido, publicaciones_extraidas = ejecutar_instagram()
+    
+    if perfil_extraido and publicaciones_extraidas is not None:
+        save_to_json(perfil_extraido, publicaciones_extraidas)
+        save_to_csv(perfil_extraido, publicaciones_extraidas)
