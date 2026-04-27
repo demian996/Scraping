@@ -1,5 +1,10 @@
 import time
+import random
 from playwright.sync_api import Page
+
+def random_sleep(min_val=1.7, max_val=4.3):
+    """Pausa la ejecución por un tiempo aleatorio entre min_val y max_val segundos."""
+    time.sleep(random.uniform(min_val, max_val))
 
 
 # ---------------------------------------------------------------------------
@@ -17,7 +22,7 @@ def extraer_perfil(page: Page, cuenta: str) -> dict:
     try:
         page.wait_for_selector("header", timeout=15000)
         print(f"Cargando perfil de {cuenta}...")
-        time.sleep(3)
+        random_sleep()
     except Exception:
         print("No se encontró el perfil o es privado.")
 
@@ -96,7 +101,7 @@ def cargar_mas_comentarios(page: Page, limite_comentarios):
         if btn_mas.count() > 0 and btn_mas.first.is_visible():
             try:
                 btn_mas.first.click(timeout=3000, force=True)
-                time.sleep(2)
+                random_sleep()
             except Exception:
                 break
         else:
@@ -208,7 +213,7 @@ def scrape_publicaciones(page: Page, limite_publicaciones: int, limite_comentari
         enlaces_posts[i].click()
 
         page.wait_for_selector("div[role='dialog']", timeout=15000)
-        time.sleep(2)
+        random_sleep()
 
         print(f"Cargando comentarios (objetivo: {limite_comentarios})...")
         cargar_mas_comentarios(page, limite_comentarios)
@@ -232,6 +237,6 @@ def scrape_publicaciones(page: Page, limite_publicaciones: int, limite_comentari
         lista_publicaciones.append(datos_post)
 
         page.keyboard.press("Escape")
-        time.sleep(1.5)
+        random_sleep()
 
     return lista_publicaciones

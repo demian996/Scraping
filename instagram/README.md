@@ -1,6 +1,8 @@
 # 📸 Instagram Scraper con Playwright
 
 > Herramienta de web scraping para perfiles de Instagram usando **Python** y **Playwright sincronizado**.
+>
+> 📄 **Lee el [Informe Técnico detallado](informe.md)** para conocer a fondo la arquitectura, la evasión de bloqueos y los desafíos del proyecto.
 
 ---
 
@@ -43,7 +45,10 @@ Número de publicaciones a abrir: 5
 Comentarios a extraer por publicación (número o 'todos'): 20
 ```
 
-- Si se deja vacío algún campo, se usan valores por defecto.
+- Si se deja vacío algún campo, se usarán los siguientes valores por defecto:
+  - **Cuenta a scrapear:** `metroecuador`
+  - **Número de publicaciones:** `3`
+  - **Comentarios por publicación:** `15`
 - El límite de comentarios acepta un número o la palabra `todos`.
 
 ---
@@ -73,6 +78,9 @@ Para cargar más comentarios, el bot hace clic automáticamente en el botón **"
 
 Al terminar cada post, simula la tecla `Escape` para cerrar el modal y continuar con el siguiente.
 
+> [!NOTE]
+> **Evasión Anti-Bot:** Todo el proceso de navegación, carga y clics incorpora pausas aleatorias (entre 1.7 y 4.3 segundos) mediante la función `random_sleep()`. Esto simula el ritmo de lectura e interacción de un usuario humano real, previniendo bloqueos de sesión.
+
 ---
 
 ### 5. 💾 Exportación de Datos (`exportar.py`)
@@ -84,7 +92,35 @@ Al finalizar, los datos se exportan en dos formatos:
 
 ---
 
+## 🛠️ Instalación y Configuración
+
+Para replicar este proyecto en tu entorno local, sigue estos pasos:
+
+1. **Crear y activar un entorno virtual:**
+   ```bash
+   # En Windows:
+   python -m venv venv
+   venv\Scripts\activate
+   
+   # En macOS/Linux:
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+2. **Instalar las dependencias:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Instalar los navegadores de Playwright:**
+   Playwright requiere descargar los binarios del navegador para funcionar.
+   ```bash
+   playwright install chromium
+   ```
+
 ## ▶️ Ejecución
+
+Una vez completada la configuración y con el entorno virtual activado, inicia el scraper con:
 
 ```bash
 python main.py

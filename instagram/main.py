@@ -2,7 +2,7 @@ import time
 from playwright.sync_api import sync_playwright
 
 from auth import cargar_contexto, esta_logueado, login_y_guardar_sesion
-from scraper import extraer_perfil, scrape_publicaciones
+from scraper import extraer_perfil, scrape_publicaciones, random_sleep
 from exportar import save_to_json, save_to_csv
 
 
@@ -18,7 +18,7 @@ def pedir_configuracion() -> tuple[str, int, int | str]:
 
     cuenta = input("\nCuenta de Instagram a scrapear: ").strip()
     if not cuenta:
-        cuenta = "demian_lml_c"
+        cuenta = "metroecuador"
         print(f"Sin cuenta ingresada. Usando '{cuenta}' por defecto.")
 
     pub_input = input("Número de publicaciones a abrir: ").strip()
@@ -55,7 +55,7 @@ def ejecutar(cuenta: str, limite_publicaciones: int, limite_comentarios):
         page = context.new_page()
 
         page.goto("https://www.instagram.com/")
-        time.sleep(3)
+        random_sleep()
 
         if not esta_logueado(page):
             print("Sesión caducada o no válida.")
@@ -70,7 +70,7 @@ def ejecutar(cuenta: str, limite_publicaciones: int, limite_comentarios):
         perfil = extraer_perfil(page, cuenta)
         publicaciones = scrape_publicaciones(page, limite_publicaciones, limite_comentarios)
 
-        time.sleep(2)
+        random_sleep()
         browser.close()
 
     return perfil, publicaciones
